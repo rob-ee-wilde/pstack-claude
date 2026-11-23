@@ -8,6 +8,7 @@
 
 # Editor and per-user Claude Code state
 .vscode/
+.idea/
 *.code-workspace
 .claude/settings.local.json
 
