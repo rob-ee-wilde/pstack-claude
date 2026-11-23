@@ -5,7 +5,7 @@
 // nothing and fails when a committed copy is stale, so it cannot ship.
 //
 // Sources of truth:
-//   VERSION  -> the "version" field in the plugin manifests and the Pi package.json
+//   VERSION  -> the "version" field in the plugin manifests and the Pi and Oh-My-Pi package.json files
 //   CHANGES.md must carry a heading for the current VERSION (release completeness)
 //   each skill's frontmatter (name + description) defines the shared Agent
 //   Skills boundary consumed natively by Codex, Prime, opencode, and Gemini CLI
@@ -20,7 +20,7 @@
 //     -> each model-consuming skill's "## Models" and "## Reasoning effort" sections
 //     -> setup-pstack's Models section and override-sheet block, and interrogate's reviewer table
 //     -> the "## Model names" section of each runtime's mapping file
-//        (poteto-mode/references/codex-tools.md, pi-tools.md)
+//        (poteto-mode/references/codex-tools.md, pi-tools.md, omp-tools.md)
 //     -> one effort agent pair per level in plugins/pstack/effort-agents/
 //   the Per-skill notes table in poteto-mode/references/codex-tools.md
 //     -> the Codex preamble under the first heading of each listed skill's SKILL.md,
@@ -54,7 +54,17 @@ import {
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { code, codeList, PLUGIN, RUNTIMES, SKILLS, validateCodexMarketplace, validatePiPackage } from "./runtimes.mjs";
+import {
+  code,
+  codeList,
+  OMP_PACKAGE_FILE,
+  PLUGIN,
+  RUNTIMES,
+  SKILLS,
+  validateCodexMarketplace,
+  validateOmpPackage,
+  validatePiPackage,
+} from "./runtimes.mjs";
 import { markdownFiles, pathIsInside, validateProsePaths, validateSkillsTree, walk } from "./validate-skills.mjs";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -67,6 +77,7 @@ const VERSIONED_MANIFESTS = [
   "plugins/pstack/.claude-plugin/plugin.json",
   "plugins/pstack/.codex-plugin/plugin.json",
   "package.json",
+  OMP_PACKAGE_FILE,
 ];
 
 export const PORTABLE_ASSETS = [
@@ -907,6 +918,11 @@ export function problems(root, models) {
       pathExists: (p) => existsSync(join(root, p)),
     }),
   );
+  attempt(() =>
+    validateOmpPackage(readFileSync(join(root, OMP_PACKAGE_FILE), "utf8"), {
+      pathExists: (p) => existsSync(join(root, p)),
+    }),
+  );
   attempt(() => validatePluginLayout(pluginRoot));
   attempt(() => validateAgentFrontmatter(pluginRoot));
   for (const file of ["hooks/hooks.json", ...(codexManifest ? [codexManifest.hooks] : [])]) {
@@ -938,7 +954,7 @@ function main() {
   if (pending?.length === 0) console.log(`ok: ${Object.keys(intended.files).length} generated files current`);
   for (const failure of failures) console.error(`FAIL: ${failure}`);
   if (failures.length) process.exit(1);
-  console.log("ok: skill links, prose paths, model slugs, marketplace, Pi package, plugin layout, agent frontmatter, and hooks pass their checks");
+  console.log("ok: skill links, prose paths, model slugs, marketplace, Pi and Oh-My-Pi packages, plugin layout, agent frontmatter, and hooks pass their checks");
 }
 
 // Guarded so importing the generator's validation and rendering functions does

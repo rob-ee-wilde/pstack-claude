@@ -48,13 +48,19 @@ import {
   tableRows,
   validateHooks,
 } from "../tools/generate.mjs";
-import { piModelNamesSection, RUNTIMES, validateCodexMarketplace, validatePiPackage } from "../tools/runtimes.mjs";
+import {
+  piModelNamesSection,
+  RUNTIMES,
+  validateCodexMarketplace,
+  validateOmpPackage,
+  validatePiPackage,
+} from "../tools/runtimes.mjs";
 import { walk } from "../tools/validate-skills.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const models = loadModels();
 const leads = loadLeadLines();
-const [codex, pi] = RUNTIMES;
+const [codex, pi, omp] = RUNTIMES;
 
 const lines = (text) => text.split("\n");
 const spanned = (locate, doc) => {
@@ -284,6 +290,41 @@ describe("validatePiPackage", () => {
     );
     expect(() => validatePiPackage(manifest(good, { dependencies: { x: "1" } }), { pathExists: everything })).toThrow(
       "package.json: the Pi package has no runtime dependencies",
+    );
+  });
+});
+
+describe("validateOmpPackage", () => {
+  const manifest = (extra) => JSON.stringify({ name: "pstack-omp", omp: { extensions: ["./omp/index.ts"] }, ...extra });
+  const everything = () => true;
+
+  test("accepts the Oh-My-Pi extension entry when it exists", () => {
+    const seen = [];
+    validateOmpPackage(manifest(), { pathExists: (p) => seen.push(p) > 0 });
+    expect(seen).toEqual(["plugins/pstack/omp/index.ts"]);
+  });
+
+  test("names a listed extension that does not exist", () => {
+    expect(() => validateOmpPackage(manifest(), { pathExists: () => false })).toThrow(
+      "plugins/pstack/package.json: omp.extensions names ./omp/index.ts, which does not exist",
+    );
+  });
+
+  test("requires exactly the Oh-My-Pi extension, so the Pi extension never loads", () => {
+    for (const extensions of [[], ["./pi/index.ts"], ["./omp/index.ts", "./pi/index.ts"]]) {
+      expect(() => validateOmpPackage(manifest({ omp: { extensions } }), { pathExists: everything })).toThrow(
+        'plugins/pstack/package.json: omp.extensions must be exactly ["./omp/index.ts"]',
+      );
+    }
+    expect(() => validateOmpPackage(manifest({ omp: undefined }), { pathExists: everything })).toThrow("omp.extensions must be exactly");
+  });
+
+  test("rejects a pi key, which Oh-My-Pi falls back to, and runtime dependencies", () => {
+    expect(() => validateOmpPackage(manifest({ pi: { extensions: ["./pi/index.ts"] } }), { pathExists: everything })).toThrow(
+      'plugins/pstack/package.json: has a "pi" key',
+    );
+    expect(() => validateOmpPackage(manifest({ dependencies: { x: "1" } }), { pathExists: everything })).toThrow(
+      "plugins/pstack/package.json: the Oh-My-Pi package has no runtime dependencies",
     );
   });
 });
@@ -525,13 +566,14 @@ describe("lead lines", () => {
     expect(stampLeadLine("no heading\n", "Lead.")).toBeNull();
   });
 
-  test("Codex stamps a preamble on its noted skills and Pi stamps none", () => {
-    expect(RUNTIMES.map((r) => r.name)).toEqual(["Codex", "Pi"]);
+  test("Codex stamps a preamble on its noted skills and Pi and Oh-My-Pi stamp none", () => {
+    expect(RUNTIMES.map((r) => r.name)).toEqual(["Codex", "Pi", "Oh-My-Pi"]);
     expect(codex.preamble).toBe(
       "On Codex, read the [platform mapping](../poteto-mode/references/codex-tools.md), including its per-skill notes, before following this skill.",
     );
     expect(pi.preamble).toBeNull();
-    expect([...leads.values()].filter((line) => line.includes("pi-tools.md"))).toEqual([]);
+    expect(omp.preamble).toBeNull();
+    expect([...leads.values()].filter((line) => /(pi|omp)-tools\.md/.test(line))).toEqual([]);
   });
 
   test("a notes table lists its skills in row order and rejects a row without one", () => {

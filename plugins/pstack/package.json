@@ -1,0 +1,10 @@
+{
+  "name": "pstack-omp",
+  "private": true,
+  "version": "0.9.68",
+  "description": "Oh-My-Pi plugin package of pstack: link this directory with `omp plugin link` to load the skills, the pstack agents, and the extension in omp/.",
+  "license": "MIT",
+  "omp": {
+    "extensions": ["./omp/index.ts"]
+  }
+}
