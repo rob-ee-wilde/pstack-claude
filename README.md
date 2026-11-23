@@ -1,6 +1,6 @@
 # pstack
 
-Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) is an opinionated Cursor skill stack that improves agent outcomes. This is a port for Claude Code, Codex, Pi and other agent harnesses. It tracks upstream and also carries named policy forks, each declared in [`tools/forks.json`](tools/forks.json).
+Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) is an opinionated Cursor skill stack that improves agent outcomes. This is a port for Claude Code, Codex, Pi, Oh-My-Pi and other agent harnesses. It tracks upstream and also carries named policy forks, each declared in [`tools/forks.json`](tools/forks.json).
 
 Tell `poteto-mode` your goal and it will invoke the correct workflow for the task. It keeps your code concise, simple and verified.
 
@@ -36,7 +36,18 @@ pi install git:github.com/michael-denyer/pstack-claude
 
 The package loads the skills and the pstack Pi extension, which adds the subagent, question, and wake-up tools the skills use, plus `/loop` and the routing instruction. Invoke a skill with `/skill:<name>`.
 
-Run `setup-pstack` to change model defaults, set a reasoning effort per role (for example `arena runners: opus @xhigh, fable @max`, which Claude Code dispatches through the plugin's `pstack:effort-<level>` or `pstack:poteto-agent-<level>` agents; roles without a level keep the session's effort unless the sheet's `default effort` line names one), or turn automatic routing off. The plugin installs the routing hook on Claude Code and Codex; Codex asks you to trust it through `/hooks` before it runs. On Pi the extension injects the same routing instruction. In Claude Code, use `/pstack:setup-pstack`.
+### Oh-My-Pi
+
+Run in your terminal:
+
+```shell
+git clone https://github.com/michael-denyer/pstack-claude
+omp plugin link pstack-claude/plugins/pstack
+```
+
+The plugin loads the skills, the `poteto-agent` and `comment-sicko` task agents, and a small extension that adds the routing instruction and points the model at the [Oh-My-Pi mapping](plugins/pstack/skills/poteto-mode/references/omp-tools.md). Subagents, questions, and the todolist use Oh-My-Pi's own `task`, `ask`, and `todo` tools. Do not install the repository root with `omp plugin install`: Oh-My-Pi would load the Pi extension, which it cannot run.
+
+Run `setup-pstack` to change model defaults, set a reasoning effort per role (for example `arena runners: opus @xhigh, fable @max`, which Claude Code dispatches through the plugin's `pstack:effort-<level>` or `pstack:poteto-agent-<level>` agents; roles without a level keep the session's effort unless the sheet's `default effort` line names one), or turn automatic routing off. The plugin installs the routing hook on Claude Code and Codex; Codex asks you to trust it through `/hooks` before it runs. On Pi and Oh-My-Pi the extension injects the same routing instruction. In Claude Code, use `/pstack:setup-pstack`.
 
 For Prime Agent, OpenCode, Gemini CLI, or skills-only installs for any harness, see [shared installation](docs/reference.md#shared-skills-installation).
 

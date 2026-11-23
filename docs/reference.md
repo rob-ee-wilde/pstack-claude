@@ -46,13 +46,14 @@ Find each skill's instructions in the [skills tree](../plugins/pstack/skills/).
 
 ## Runtime support
 
-All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only installation includes the skills, scripts, agent references, and license notices. The Claude Code and Codex plugins also install automatic routing hooks, and the Pi package adds an extension that injects the same routing and supplies the subagent tools. Codex command shortcuts are separate.
+All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only installation includes the skills, scripts, agent references, and license notices. The Claude Code and Codex plugins also install automatic routing hooks, the Pi package adds an extension that injects the same routing and supplies the subagent tools, and the Oh-My-Pi plugin adds an extension that injects the routing over Oh-My-Pi's own tools. Codex command shortcuts are separate.
 
 | Runtime | Setup and recorded verification |
 | --- | --- |
 | Claude Code | Install the marketplace plugin. Skills use Claude tool names and model defaults; the plugin installs automatic routing. |
 | Codex | Install the native plugin through the repository's marketplace and trust its hook through `/hooks`. The [Codex mapping](../plugins/pstack/skills/poteto-mode/references/codex-tools.md) translates Claude tools and model names. Shared skill symlinks were also detected in a live session. |
 | Pi | Install the repository as a Pi package with `pi install`. The [Pi extension](../plugins/pstack/pi/index.ts) registers the subagent, question, and wake-up tools and `/loop`, and the [Pi mapping](../plugins/pstack/skills/poteto-mode/references/pi-tools.md) translates Claude tools and model names. The [equivalence table](pi-equivalence.md) records each Claude Code mechanism and how it was verified on Pi 1.0. |
+| Oh-My-Pi | Link `plugins/pstack` with `omp plugin link` (see [Oh-My-Pi](#oh-my-pi)). The [Oh-My-Pi extension](../plugins/pstack/omp/index.ts) injects routing, and the [Oh-My-Pi mapping](../plugins/pstack/skills/poteto-mode/references/omp-tools.md) translates Claude tools and model names to Oh-My-Pi's own. Skill discovery, routing, the sheet, and `poteto-agent` dispatch were verified live on omp 18.6.1. |
 | Prime Agent | Its documentation describes shared-directory discovery; it has not been tested in a live session. Choose tools and models through Prime's configuration. |
 | opencode | Discovery and reading a linked skill were verified on version 1.18.25. Configure agents, commands, and permissions in `opencode.json`. Its picker also lists principle skills. |
 | Gemini CLI | Its documentation describes shared-directory discovery; it has not been tested in a live session. Use `/skills list` to check discovery and `/skills reload` after changes. |
@@ -61,7 +62,7 @@ These checks cover skill discovery. Delegation and multi-model workflows remain 
 
 ### Automatic routing
 
-The Claude Code and Codex plugins load the same short [routing instruction](../plugins/pstack/hooks/session-start-context.md) on startup, resume, clear, and compact. The [POSIX hook](../plugins/pstack/hooks/session-start.sh) runs on Claude Code and POSIX Codex. On Windows, Codex uses a [PowerShell adapter](../plugins/pstack/hooks/session-start.ps1) through its `commandWindows` override and does not require Bash. The adapter runs with `-ExecutionPolicy Bypass`, which a machine or user execution policy set by Group Policy overrides; on such machines the hook fails and no instruction loads. Codex requires the user to trust plugin hooks through `/hooks`. On Pi, the [extension](../plugins/pstack/pi/prompt.ts) adds the same instruction to the system prompt at every agent start, so it survives compaction. The instruction invokes `poteto-mode` when a task meets any of these conditions:
+The Claude Code and Codex plugins load the same short [routing instruction](../plugins/pstack/hooks/session-start-context.md) on startup, resume, clear, and compact. The [POSIX hook](../plugins/pstack/hooks/session-start.sh) runs on Claude Code and POSIX Codex. On Windows, Codex uses a [PowerShell adapter](../plugins/pstack/hooks/session-start.ps1) through its `commandWindows` override and does not require Bash. The adapter runs with `-ExecutionPolicy Bypass`, which a machine or user execution policy set by Group Policy overrides; on such machines the hook fails and no instruction loads. Codex requires the user to trust plugin hooks through `/hooks`. On Pi, the [extension](../plugins/pstack/pi/prompt.ts) adds the same instruction to the system prompt at every agent start, and on Oh-My-Pi the [Oh-My-Pi extension](../plugins/pstack/omp/index.ts) adds it to every main-session prompt, so it survives compaction. The instruction invokes `poteto-mode` when a task meets any of these conditions:
 
 - It touches more than one file or changes a signature other files call.
 - It involves a design or architecture choice.
@@ -147,6 +148,23 @@ The extension supplies what Pi lacks natively, under the Claude Code names the s
 
 Family names such as `opus` resolve through the `pi` block of [`models.json`](../plugins/pstack/models.json) to model IDs for the provider the Pi session runs on. A ChatGPT sign-in (`openai`, or the legacy `openai-codex`) gets OpenAI models, and Anthropic or any other provider gets Claude models. Pi warns that Anthropic bills Claude used through Pi per token, as extra usage, even on a Claude subscription, and every subagent pstack starts adds to that bill. Run pstack in Claude Code to stay within a Claude plan's limits. A `pi models:` line in the sheet remaps any family name. The [Pi mapping](../plugins/pstack/skills/poteto-mode/references/pi-tools.md) lists every translation, and the [equivalence table](pi-equivalence.md) records what was verified and how.
 
+### Oh-My-Pi
+
+Oh-My-Pi (`omp`) cannot run the Pi extension: it rejects the flags the extension starts child agents with, and its `before_agent_start` event has a different shape. `plugins/pstack/` is an Oh-My-Pi plugin package instead. Its [`package.json`](../plugins/pstack/package.json) declares the [Oh-My-Pi extension](../plugins/pstack/omp/index.ts) under `omp`, and Oh-My-Pi scans the same directory's `skills/` and `agents/`. Link a checkout:
+
+```shell
+git clone https://github.com/michael-denyer/pstack-claude
+omp plugin link pstack-claude/plugins/pstack
+```
+
+The build uses Oh-My-Pi's own tools rather than adding its own:
+
+- Subagents run through Oh-My-Pi's `task` tool. `poteto-agent` and `comment-sicko` load as `task` agents; the effort agents do not, so a role's `@<level>` becomes a `:<level>` suffix on the item's `model`.
+- Questions, the todolist, and web search use Oh-My-Pi's `ask`, `todo`, and `web_search`. There is no `/loop` or `schedule_wakeup`.
+- On every prompt the extension adds a pointer to the [Oh-My-Pi mapping](../plugins/pstack/skills/poteto-mode/references/omp-tools.md) and the override sheet `pstack-models.md` from `$PI_CODING_AGENT_DIR` or `~/.omp/agent`. Main-session prompts also get the routing instruction unless the sheet has `session hook: off`; `task` subagents do not.
+
+Family names such as `opus` have no automatic resolution on Oh-My-Pi. The Oh-My-Pi mapping's Model names table, stamped from the `pi` block of [`models.json`](../plugins/pstack/models.json), gives the model ID to pass as each `task` item's `model`. Oh-My-Pi also discovers the principle skills, since it does not read `user-invocable: false`.
+
 ## Configuration and dependencies
 
 Invoke [setup-pstack](../plugins/pstack/skills/setup-pstack/SKILL.md) to choose models for each role. It detects available models, confirms the choices, and writes an override sheet. Its [runtime table](../plugins/pstack/skills/setup-pstack/SKILL.md#other-runtimes) names the sheet path and loading mechanism for each runtime. Defaults live in [models.json](../plugins/pstack/models.json).
@@ -187,6 +205,8 @@ plugins/pstack/
   .claude-plugin/plugin.json      Claude Code plugin manifest
   .codex-plugin/                  Codex manifest and generated prompt stubs
   pi/                            Pi extension (subagent, question, and wake-up tools)
+  omp/                           Oh-My-Pi extension (routing instruction, sheet, and mapping pointer)
+  package.json                   Oh-My-Pi plugin package manifest
   skills/                        Shared skills, references, and scripts
   agents/                        Claude Code subagent definitions
   hooks/                         Claude Code startup routing
