@@ -2,7 +2,9 @@
 // its API types, its typebox, and its @types/node, which are what the
 // extension runs with inside Pi. PI_PACKAGE_DIR names the package; otherwise
 // it is looked up under the global npm root. CI installs a pinned version
-// there, so the check costs no devDependency and leaves bun.lock alone.
+// there, so the check costs no devDependency and leaves bun.lock alone. The
+// Oh-My-Pi extension declares the API it uses itself, so it rides along for
+// the same @types/node.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -36,12 +38,12 @@ const config = {
       "typebox/*": ["node_modules/typebox/build/*/index.d.mts"],
     },
   },
-  include: [join(repo, "plugins", "pstack", "pi", "*.ts")],
+  include: [join(repo, "plugins", "pstack", "pi", "*.ts"), join(repo, "plugins", "pstack", "omp", "*.ts")],
 };
 const dir = mkdtempSync(join(tmpdir(), "pstack-pi-typecheck-"));
 try {
   writeFileSync(join(dir, "tsconfig.json"), JSON.stringify(config, null, 2));
-  console.log(`typechecking plugins/pstack/pi against ${piDir}`);
+  console.log(`typechecking plugins/pstack/pi and plugins/pstack/omp against ${piDir}`);
   const tsc = spawnSync("bunx", ["--package", "typescript@5.9.3", "tsc", "-p", join(dir, "tsconfig.json")], { cwd: dir, stdio: "inherit" });
   process.exitCode = tsc.status ?? 1;
 } finally {

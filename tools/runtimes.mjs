@@ -14,8 +14,9 @@ export const codeList = (models) => models.map(code).join(", ");
 // in its mapping file. A `skillPreambles` runtime also gets a preamble under
 // the first heading of each skill its Per-skill notes table lists, and a
 // runtime with a `prompts` directory a slash stub per public skill there. Pi
-// has neither: its one pointer is hand-written in poteto-mode's Platform
-// Adaptation section.
+// and Oh-My-Pi have neither: their one pointer is hand-written in poteto-mode's
+// Platform Adaptation section. Oh-My-Pi shares Pi's models.json block, since
+// both take the same provider/id model selectors.
 export const RUNTIMES = [
   {
     name: "Codex",
@@ -27,6 +28,7 @@ export const RUNTIMES = [
     prompts: `${PLUGIN}/.codex-plugin/prompts`,
   },
   { name: "Pi", key: "pi", mapping: "pi-tools.md", modelNames: piModelNamesSection, checkModels: checkPiModels },
+  { name: "Oh-My-Pi", key: "pi", mapping: "omp-tools.md", modelNames: ompModelNamesSection, checkModels: checkPiModels },
 ].map((runtime) => ({
   ...runtime,
   tools: `${SKILLS}/poteto-mode/references/${runtime.mapping}`,
@@ -89,17 +91,22 @@ export function codexModelNamesSection(models) {
   );
 }
 
-export function piModelNamesSection(models) {
-  const { fallback, models: tables } = models.pi;
+// One row per available alias, one column per provider in the `pi` block.
+function piAliasTable(models) {
+  const tables = models.pi.models;
   const columns = Object.keys(tables);
-  const table =
+  return (
     `| Alias | ${columns.map(code).join(" | ")} |\n| --- |${" --- |".repeat(columns.length)}\n` +
-    models.available.map((alias) => `| ${code(alias)} | ${columns.map((p) => code(tables[p][alias])).join(" | ")} |`).join("\n");
+    models.available.map((alias) => `| ${code(alias)} | ${columns.map((p) => code(tables[p][alias])).join(" | ")} |`).join("\n")
+  );
+}
+
+export function piModelNamesSection(models) {
   return (
     "Skills name models by the Claude aliases in their Models sections. On Pi, pass the alias as the `agent` " +
     "tool's `model`. The pstack extension resolves it in the column of the provider the session's current model " +
-    `comes from, and in the ${code(fallback)} column for any other provider:\n\n` +
-    table +
+    `comes from, and in the ${code(models.pi.fallback)} column for any other provider:\n\n` +
+    piAliasTable(models) +
     "\n\nPi warns that Anthropic bills Claude used through Pi per token, as extra usage, even on a Claude subscription. " +
     "Pi shows that warning only in interactive mode, never for the `pi --mode rpc` children the `agent` tool runs.\n\n" +
     "A `pi models: opus=<provider/id>, sonnet=<provider/id>` line in the Pi override sheet points each alias " +
@@ -109,6 +116,22 @@ export function piModelNamesSection(models) {
     "stay diverse only while their aliases resolve to distinct models. If one model family is all you can reach, " +
     "vary the reasoning effort and note in the verdict that diversity was reduced.\n\n" +
     "`/setup-pstack` writes the configured model list. On Pi, keep the aliases and remap them with `pi models:`."
+  );
+}
+
+// Oh-My-Pi's `task` tool takes a provider/id per item and fails a selector it
+// cannot reach rather than falling back, so the model picks the column itself.
+export function ompModelNamesSection(models) {
+  return (
+    "Skills name models by the Claude aliases in their Models sections. On Oh-My-Pi, pass the model ID from the " +
+    "column of the provider your session runs on as the `task` item's `model`, or `@default` to run the subagent " +
+    "on your own model:\n\n" +
+    piAliasTable(models) +
+    "\n\nA `model` that matches no model you can reach fails the `task` call instead of falling back, so check " +
+    "`omp models` when one fails. Diverse-model panels (`arena`, `architect`, `interrogate`, `how` critics, " +
+    "`reflect`) stay diverse only while their aliases resolve to distinct models. If one model family is all you " +
+    "can reach, vary the reasoning effort and note in the verdict that diversity was reduced.\n\n" +
+    "`/setup-pstack` writes the configured model list. On Oh-My-Pi, write the model rows as Oh-My-Pi model IDs."
   );
 }
 
@@ -149,4 +172,25 @@ export function validatePiPackage(text, { pathExists }) {
     }
     if (!listed.includes(`./${required}`)) fail(`pi.${key} must list ./${required}`);
   }
+}
+
+export const OMP_PACKAGE_FILE = `${PLUGIN}/package.json`;
+const OMP_EXTENSION = "./omp/index.ts";
+
+// `omp plugin link plugins/pstack` reads this package.json's `omp` key and
+// scans the same directory's skills/ and agents/. Without an `omp` key Oh-My-Pi
+// falls back to a `pi` key, so one here would load the Pi extension, which
+// Oh-My-Pi cannot run.
+export function validateOmpPackage(text, { pathExists }) {
+  const manifest = JSON.parse(text);
+  const fail = (message) => {
+    throw new Error(`${OMP_PACKAGE_FILE}: ${message}`);
+  };
+  if (manifest.pi !== undefined) fail('has a "pi" key; Oh-My-Pi would load it in place of a missing "omp" key');
+  if (Object.keys(manifest.dependencies ?? {}).length) fail("the Oh-My-Pi package has no runtime dependencies");
+  const listed = manifest.omp?.extensions ?? [];
+  for (const path of listed) {
+    if (!pathExists(`${PLUGIN}/${path.replace(/^\.\//, "")}`)) fail(`omp.extensions names ${path}, which does not exist`);
+  }
+  if (listed.length !== 1 || listed[0] !== OMP_EXTENSION) fail(`omp.extensions must be exactly ["${OMP_EXTENSION}"]`);
 }

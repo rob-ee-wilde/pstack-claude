@@ -1,5 +1,6 @@
 // The off-switch grammar every SessionStart implementation must agree on:
-// session-start.sh, session-start.ps1, and Pi's parseSheet. Only an exact
+// session-start.sh, session-start.ps1, Pi's parseSheet, and the Oh-My-Pi
+// extension's sheet reader. Only an exact
 // `session hook: off` line, with LF or CRLF endings and an optional UTF-8
 // byte-order mark, disables injection. A sheet that cannot be read as a file
 // leaves injection on, as a missing sheet does.
